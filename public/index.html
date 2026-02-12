@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Online Quiz System</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        .role-switch {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .role-btn {
+            flex: 1;
+            padding: 0.6rem;
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .role-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="glass-panel fade-in">
+        <h1 id="formTitle">Login</h1>
+        <p class="text-center" style="margin-bottom: 2rem;">Access your quizzes</p>
+
+        <!-- Role Switch (NEW, does not affect existing IDs) -->
+        <div class="role-switch">
+            <button type="button" class="role-btn active" onclick="setRole('student', this)">
+                User
+            </button>
+            <button type="button" class="role-btn" onclick="setRole('admin', this)">
+                Admin
+            </button>
+        </div>
+
+        <form id="authForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="Enter username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter password" required>
+            </div>
+
+            <!-- SAME hidden role input -->
+            <input type="hidden" id="role" value="student">
+
+            <button type="submit" class="btn">Login</button>
+
+            <div class="text-center mt-4">
+                <a href="#" id="toggleMode" style="color: var(--text-muted); font-size: 0.9rem;">
+                    Need an account? Register
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Existing JS remains untouched -->
+    <script src="js/auth.js"></script>
+
+    <!-- Small helper script (safe) -->
+    <script>
+        function setRole(role, btn) {
+            document.getElementById('role').value = role;
+
+            document.querySelectorAll('.role-btn')
+                .forEach(b => b.classList.remove('active'));
+
+            btn.classList.add('active');
+        }
+    </script>
+</body>
+
+</html>

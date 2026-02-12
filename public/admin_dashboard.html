@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Quiz System</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container fade-in">
+        <header class="glass-panel items-center justify-between flex" style="margin-bottom: 2rem;">
+            <h2>Admin Dashboard</h2>
+            <div class="flex">
+                <button onclick="createNewQuiz()" class="btn">Create New Quiz</button>
+                <button onclick="logout()" class="btn-secondary" style="margin-top:0;">Logout</button>
+            </div>
+        </header>
+
+        <div id="quizList" class="flex flex-col" style="gap: 1rem;">
+            <p class="text-center">Loading quizzes...</p>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="resultsModal" class="modal hidden">
+        <div class="glass-panel" style="max-height: 80vh; overflow-y: auto; max-width: 600px; width: 100%;">
+            <div class="flex justify-between items-center" style="margin-bottom: 1.5rem;">
+                <h3 id="resModalTitle">Quiz Results</h3>
+                <button class="btn-secondary" onclick="closeResultsModal()"
+                    style="width: auto; padding: 0.5rem;">X</button>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; color: var(--text-color);">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--card-border);">
+                        <th style="padding: 0.75rem; text-align: left;">Rank</th>
+                        <th style="padding: 0.75rem; text-align: left;">Student</th>
+                        <th style="padding: 0.75rem; text-align: right;">Score</th>
+                        <th style="padding: 0.75rem; text-align: right;">Date</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsTableBody">
+                    <!-- Rows here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create/Edit Quiz Modal -->
+    <div id="createModal" class="modal hidden">
+        <div class="glass-panel" style="max-height: 90vh; overflow-y: auto; max-width: 800px;">
+            <h3 id="modalTitle">Create Quiz</h3>
+            <form id="createQuizForm">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="qTitle" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="qDesc">
+                </div>
+                <div class="form-group">
+                    <label>Time Limit (Minutes)</label>
+                    <input type="number" id="qTime" value="10">
+                </div>
+
+                <hr style="margin: 1rem 0; border: 0; border-top: 1px solid var(--card-border);">
+
+                <div id="questionsContainer">
+                    <!-- Questions added here -->
+                </div>
+
+                <button type="button" style="color:white;" class="btn-secondary" onclick="addQuestionUI()">+ Add Question</button>
+
+                <div class="flex mt-4">
+                    <button type="button" class="btn-secondary" style="color:white;" onclick="closeCreateModal()">Cancel</button>
+                    <button type="submit" class="btn">Save Quiz</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function logout() { localStorage.removeItem('user'); window.location.href = 'index.html'; }
+
+        let questionCount = 0;
+
+        function addQuestionUI() {
+            questionCount++;
+            const div = document.createElement('div');
+            div.className = 'glass-panel'; // nested panel
+            div.style.padding = '1rem';
+            div.style.marginBottom = '1rem';
+            div.innerHTML = `
+                <div class="form-group">
+                    <label>Question ${questionCount}</label>
+                    <input type="text" class="q-text" required placeholder="Enter question">
+                </div>
+                <div class="form-group">
+                    <label>Points</label>
+                    <input type="number" class="q-points" value="1" style="width: 100px;">
+                </div>
+                <div class="options-container">
+                    <p style="font-size: 0.8rem; margin-bottom: 0.5rem;">Options (Check correct one)</p>
+                    ${[1, 2, 3, 4].map(i => `
+                        <div class="flex items-center" style="margin-bottom: 0.5rem;">
+                            <input type="radio" name="correct-${questionCount}" value="${i - 1}" ${i === 1 ? 'checked' : ''}>
+                            <input type="text" class="opt-text" placeholder="Option ${i}" required>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            document.getElementById('questionsContainer').appendChild(div);
+        }
+
+        async function loadQuizzes() {
+            const list = document.getElementById('quizList');
+            try {
+                const res = await fetch('/api/quizzes');
+                const data = await res.json();
+                list.innerHTML = '';
+                data.forEach(q => {
+                    const item = document.createElement('div');
+                    item.className = 'glass-panel flex justify-between';
+                    item.innerHTML = `
+                        <div><h3>${q.title}</h3><p>${q.description}</p></div>
+                        <div class="flex">
+                             <button onclick="viewResults(${q.id}, '${q.title}')" class="btn-secondary" style="color: var(--primary-color); border-color: var(--primary-color);">Results</button>
+                             <button onclick="editQuiz(${q.id})" class="btn-secondary">Edit</button>
+                             <button onclick="deleteQuiz(${q.id})" class="btn-secondary" style="color:red; border-color:red;">Delete</button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        let isEditing = false;
+        let editingId = null;
+
+        async function editQuiz(id) {
+            isEditing = true;
+            editingId = id;
+            document.getElementById('modalTitle').textContent = 'Edit Quiz';
+            try {
+                const res = await fetch(`/api/quizzes/${id}`);
+                const quiz = await res.json();
+
+                document.getElementById('qTitle').value = quiz.title;
+                document.getElementById('qDesc').value = quiz.description;
+                document.getElementById('qTime').value = quiz.time_limit_minutes;
+
+                document.getElementById('questionsContainer').innerHTML = '';
+                questionCount = 0;
+
+                if (quiz.questions) {
+                    quiz.questions.forEach((q, idx) => {
+                        addQuestionUI();
+                        const qDiv = document.querySelectorAll('#questionsContainer > div')[idx];
+                        qDiv.querySelector('.q-text').value = q.question_text;
+                        qDiv.querySelector('.q-points').value = q.points;
+
+                        const optInputs = qDiv.querySelectorAll('.opt-text');
+                        const radios = qDiv.querySelectorAll('input[type=radio]');
+
+                        // Check which option is correct
+                        let correctIndex = 0;
+                        q.options.forEach((opt, i) => {
+                            if (optInputs[i]) optInputs[i].value = opt.option_text;
+                            if (opt.is_correct) correctIndex = i;
+                        });
+                        // Set radio
+                        if (radios[correctIndex]) radios[correctIndex].checked = true;
+                    });
+                }
+
+                openCreateModal();
+            } catch (e) { console.error(e); alert('Error loading quiz'); }
+        }
+
+        function createNewQuiz() {
+            isEditing = false;
+            editingId = null;
+            document.getElementById('modalTitle').textContent = 'Create Quiz';
+            document.getElementById('createQuizForm').reset();
+            document.getElementById('questionsContainer').innerHTML = '';
+            questionCount = 0;
+            addQuestionUI();
+            openCreateModal();
+        }
+
+        function openCreateModal() { document.getElementById('createModal').classList.remove('hidden'); }
+        function closeCreateModal() { document.getElementById('createModal').classList.add('hidden'); }
+
+        document.getElementById('createQuizForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = JSON.parse(localStorage.getItem('user'));
+
+            const title = document.getElementById('qTitle').value;
+            const description = document.getElementById('qDesc').value;
+            const time_limit_minutes = document.getElementById('qTime').value;
+
+            const questions = [];
+            document.querySelectorAll('#questionsContainer > div').forEach((qDiv, index) => {
+                const qText = qDiv.querySelector('.q-text').value;
+                const points = qDiv.querySelector('.q-points').value;
+                // Since questionCount increments globally, the name might be 'correct-5' but index is 0. 
+                // We need to find the radio group WITHIN this qDiv or rely on stable indexing if we don't delete questions from UI (which we don't currently).
+                // Robust way: get the name attr of the first radio in this div.
+                const firstRadio = qDiv.querySelector('input[type=radio]');
+                const nameAttr = firstRadio.getAttribute('name');
+                const checkedRadio = qDiv.querySelector(`input[name="${nameAttr}"]:checked`);
+                const correctIdx = checkedRadio ? parseInt(checkedRadio.value) : 0;
+
+                const options = [];
+                qDiv.querySelectorAll('.opt-text').forEach((optInput, i) => {
+                    options.push({
+                        option_text: optInput.value,
+                        is_correct: i === correctIdx
+                    });
+                });
+
+                questions.push({
+                    question_text: qText,
+                    points: parseInt(points),
+                    question_type: 'multiple_choice',
+                    options
+                });
+            });
+
+            try {
+                let url = '/api/quizzes';
+                let method = 'POST';
+                if (isEditing && editingId) {
+                    url = `/api/quizzes/${editingId}`;
+                    method = 'PUT';
+                }
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title, description, time_limit_minutes: parseInt(time_limit_minutes),
+                        created_by: user.id,
+                        questions
+                    })
+                });
+                if (res.ok) {
+                    closeCreateModal();
+                    loadQuizzes();
+                } else {
+                    alert('Failed to save quiz');
+                }
+            } catch (err) { console.error(err); alert('Error'); }
+        });
+
+        async function deleteQuiz(id) {
+            if (!confirm('Delete this quiz?')) return;
+            try {
+                await fetch(`/api/quizzes/${id}`, { method: 'DELETE' });
+                loadQuizzes();
+            } catch (e) { console.error(e); }
+        }
+
+        async function viewResults(quizId, title) {
+            document.getElementById('resModalTitle').textContent = `Results: ${title}`;
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center">Loading...</td></tr>';
+            document.getElementById('resultsModal').classList.remove('hidden');
+
+            try {
+                const res = await fetch(`/api/attempts/quiz/${quizId}`);
+                const data = await res.json();
+                tbody.innerHTML = '';
+
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">No attempts yet.</td></tr>';
+                    return;
+                }
+
+                data.forEach((row, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid var(--card-border)';
+                    tr.innerHTML = `
+                        <td style="padding: 0.75rem;">${idx + 1}</td>
+                        <td style="padding: 0.75rem;">${row.username}</td>
+                        <td style="padding: 0.75rem; text-align: right; color: var(--success); font-weight: bold;">${row.score} / ${row.total_points}</td>
+                        <td style="padding: 0.75rem; text-align: right;" class="text-muted">${new Date(row.submitted_at).toLocaleDateString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) { console.error(e); tbody.innerHTML = '<tr><td colspan="4">Error loading results</td></tr>'; }
+        }
+
+        function closeResultsModal() { document.getElementById('resultsModal').classList.add('hidden'); }
+
+        document.addEventListener('DOMContentLoaded', loadQuizzes);
+    </script>
+</body>
+
+</html>

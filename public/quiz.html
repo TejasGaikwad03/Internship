@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taking Quiz - Quiz System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="container fade-in">
+        <header class="glass-panel flex justify-between items-center"
+            style="margin-bottom: 2rem; position: sticky; top: 1rem; z-index: 10;">
+            <h2 id="qTitle">Quiz Title</h2>
+            <div style="text-align: right;">
+                <p class="text-muted">Time Remaining</p>
+                <h3 id="timer" style="color: var(--primary-color);">00:00</h3>
+            </div>
+        </header>
+
+        <form id="quizForm">
+            <div id="questionsList"></div>
+            <button type="submit" class="btn mt-4">Submit Quiz</button>
+        </form>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const quizId = urlParams.get('id');
+        const user = JSON.parse(localStorage.getItem('user'));
+
+        let timeLeft = 0;
+        let timerInterval;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!quizId || !user) { window.location.href = 'index.html'; return; }
+
+            try {
+                const res = await fetch(`/api/quizzes/${quizId}`);
+                const quiz = await res.json();
+
+                document.getElementById('qTitle').textContent = quiz.title;
+                timeLeft = quiz.time_limit_minutes * 60;
+                startTimer();
+
+                const container = document.getElementById('questionsList');
+                quiz.questions.forEach((q, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'glass-panel';
+                    card.style.marginBottom = '1rem';
+                    card.innerHTML = `
+                        <p style="margin-bottom: 1rem; font-weight: 600;">${idx + 1}. ${q.question_text} <span class="text-muted">(${q.points} pts)</span></p>
+                        ${q.options.map(opt => `
+                            <div style="margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="radio" name="q_${q.id}" value="${opt.id}" id="opt_${opt.id}">
+                                <label for="opt_${opt.id}" style="margin:0; cursor: pointer;">${opt.option_text}</label>
+                            </div>
+                        `).join('')}
+                    `;
+                    container.appendChild(card);
+                });
+
+            } catch (e) { console.error(e); alert('Failed to load quiz'); }
+        });
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+                const s = (timeLeft % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert('Time is up!');
+                    submitQuiz();
+                }
+            }, 1000);
+        }
+
+        document.getElementById('quizForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to submit?')) {
+                submitQuiz();
+            }
+        });
+
+        async function submitQuiz() {
+            clearInterval(timerInterval);
+            const answers = [];
+            // Collect answers logic need to be robust based on rendered DOM
+            // We iterate over input[type=radio]:checked
+            const checked = document.querySelectorAll('input[type=radio]:checked');
+            checked.forEach(input => {
+                const qId = input.name.split('_')[1];
+                const optId = input.value;
+                answers.push({ question_id: parseInt(qId), option_id: parseInt(optId) });
+            });
+
+            try {
+                const res = await fetch('/api/attempts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: user.id,
+                        quiz_id: parseInt(quizId),
+                        answers
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    window.location.href = `result.html?score=${data.score}&total=${data.totalPoints}`;
+                } else {
+                    alert('Submission failed');
+                }
+            } catch (e) { console.error(e); }
+        }
+    </script>
+</body>
+
+</html>

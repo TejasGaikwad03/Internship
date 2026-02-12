@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Online Quiz System</title>
+    <link rel="stylesheet" href="css/style.css">
+
+    <style>
+        /* =====================
+           Navbar
+        ===================== */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f97316, #fb923c);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .username {
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container fade-in">
+
+        <!-- NAVBAR -->
+         <div class="navbar"></div>
+        <header class="glass-panel navbar">
+            <div class="nav-left">
+                <div class="logo">Q</div>
+                <h2>Quiz System</h2>
+            </div>
+
+            <div class="nav-right">
+                <span id="welcomeMsg" class="username">Welcome</span>
+                <button onclick="logout()" class="btn-secondary"
+                    style="width:auto; padding:0.5rem 1rem; background-color:#f97316; border-radius:10px;">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-col" style="gap: 2rem;">
+            <!-- Available Quizzes -->
+            <section>
+                <h2 style="margin-bottom: 1rem;">Available Quizzes</h2>
+                <div id="quizList" class="flex flex-col" style="gap: 1rem;">
+                    <p class="text-center">Loading quizzes...</p>
+                </div>
+            </section>
+
+            <!-- Quiz History -->
+            <section>
+                <h2 style="margin-bottom: 1rem;">My History</h2>
+                <div id="historyList" class="flex flex-col" style="gap: 1rem;">
+                    <p class="text-center text-muted">No stored results yet.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- SAME SCRIPT (UNCHANGED) -->
+    <script>
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (!user) { window.location.href = 'index.html'; return; }
+            document.getElementById('welcomeMsg').textContent = `Hello, ${user.username}`;
+
+            try {
+                const response = await fetch('/api/quizzes');
+                const quizzes = await response.json();
+                const list = document.getElementById('quizList');
+                list.innerHTML = '';
+
+                quizzes.forEach(quiz => {
+                    const item = document.createElement('div');
+                    item.className = 'glass-panel flex justify-between';
+                    item.style.alignItems = 'center';
+                    item.style.padding = '1.5rem';
+                    item.innerHTML = `
+                        <div>
+                            <h3>${quiz.title}</h3>
+                            <p>${quiz.description || 'No description'}</p>
+                            <small class="text-muted">Time: ${quiz.time_limit_minutes} mins</small>
+                        </div>
+                        <button class="btn" onclick="startQuiz(${quiz.id})" style="width:auto;">Start Quiz</button>
+                    `;
+                    list.appendChild(item);
+                });
+            } catch (err) { console.error(err); }
+
+            try {
+                const res = await fetch(`/api/attempts/user/${user.id}`);
+                const history = await res.json();
+                const histList = document.getElementById('historyList');
+
+                if (history.length > 0) {
+                    histList.innerHTML = '';
+                    history.forEach(h => {
+                        const div = document.createElement('div');
+                        div.className = 'glass-panel flex justify-between';
+                        div.style.padding = '1rem';
+                        div.innerHTML = `
+                            <div>
+                                <h4>${h.quiz_title || 'Unknown Quiz'}</h4>
+                                <small class="text-muted">${new Date(h.submitted_at).toLocaleString()}</small>
+                            </div>
+                            <div style="text-align:right;">
+                                <h3 style="color:var(--success);">${h.score} / ${h.total_points}</h3>
+                            </div>
+                        `;
+                        histList.appendChild(div);
+                    });
+                }
+            } catch (e) { console.error(e); }
+        });
+
+        function startQuiz(id) {
+            window.location.href = `quiz.html?id=${id}`;
+        }
+    </script>
+</body>
+
+</html>
